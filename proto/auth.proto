@@ -1,0 +1,42 @@
+syntax = "proto3";
+
+package auth;
+
+service AuthService {
+  rpc VerifyToken (VerifyTokenRequest) returns (VerifyTokenResponse);
+  rpc UserDetail (UserDetailRequest) returns (UserDetailResponse);
+  rpc UsersDetail (UsersDetailRequest) returns (UsersDetailResponse);
+}
+
+message VerifyTokenRequest {
+  string token = 1;
+}
+
+message VerifyTokenResponse {
+  User user = 1;
+  bool valid = 2;
+}
+
+message UserDetailRequest {
+  string _id = 1;
+}
+
+message UserDetailResponse {
+  User user = 1;
+}
+
+message UsersDetailRequest {
+  repeated string _ids = 1;
+}
+
+message UsersDetailResponse {
+  repeated User users = 1;
+}
+
+
+message User {
+  string _id = 1;
+  string firstName = 2;
+  string lastName = 3;
+  string email = 4;
+}

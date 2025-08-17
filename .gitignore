@@ -1,0 +1,60 @@
+# --- Node.js ---
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# --- TypeScript / Build ---
+dist/
+build/
+*.tsbuildinfo
+
+# --- Environment files ---
+.env
+.env.local
+.env.*.local
+
+# Each microservice may have its own .env
+services/*/.env
+services/*/.env.local
+
+# --- Logs ---
+logs/
+*.log
+*.log.*
+debug.log
+error.log
+
+# --- OS files ---
+.DS_Store
+Thumbs.db
+
+# --- IDE / Editors ---
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# --- Docker ---
+docker-compose.override.yml
+.docker/
+.dockerignore
+
+# --- Coverage / Testing ---
+coverage/
+.nyc_output/
+jest-cache/
+jest-html-reporters-*
+
+# --- Redis / Kafka / Elastic dump files ---
+dump.rdb
+*.pid
+*.seed
+*.lock
+
+# --- Misc ---
+*.tgz
+*.zip
+*.tar
+*.tar.gz

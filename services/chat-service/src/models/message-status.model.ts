@@ -1,0 +1,35 @@
+import mongoose, { Document } from "mongoose";
+
+export const MESSAGE_STATUS_MODEL_NAME = "MessageStatus";
+export const MESSAGE_STATUS_COLLECTION_NAME = "message_statuses";
+
+export interface IMessageStatus extends Document {
+  messageId: mongoose.Types.ObjectId;
+  userId: mongoose.Types.ObjectId;
+  sentAt: Date;
+  deliveredAt?: Date;
+  seenAt?: Date;
+}
+
+const messageStatusSchema = new mongoose.Schema<IMessageStatus>(
+  {
+    messageId: { type: mongoose.Schema.Types.ObjectId, required: true },
+    userId: { type: mongoose.Schema.Types.ObjectId, required: true },
+    sentAt: { type: Date, default: Date.now() },
+    deliveredAt: { type: Date, default: null },
+    seenAt: { type: Date, default: null },
+  },
+  {
+    timestamps: true,
+    collection: MESSAGE_STATUS_COLLECTION_NAME,
+  }
+);
+
+messageStatusSchema.index({ userId: 1 });
+messageStatusSchema.index({ messageId: 1 });
+
+export default mongoose.model<IMessageStatus>(
+  MESSAGE_STATUS_MODEL_NAME,
+  messageStatusSchema,
+  MESSAGE_STATUS_COLLECTION_NAME
+);
