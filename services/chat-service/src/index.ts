@@ -7,6 +7,7 @@ import router from "./routes";
 import { errorHandler } from "./middlewares/error-handler.middleware";
 import { connectDB, connectKafka } from "./config";
 import { startKafkaConsumers } from "./services/kafka/kafka.consumer";
+import "./jobs";
 
 dotenv.config();
 connectDB();
@@ -29,7 +30,6 @@ app.use(errorHandler);
 (async () => {
   try {
     await connectKafka(); // ✅ Connect to Kafka first
-    app.listen(4000, () => console.log("Auth-service running on 4000 🚀"));
   } catch (err) {
     console.error("❌ Failed to connect Kafka", err);
     process.exit(1); // Exit if Kafka isn't available

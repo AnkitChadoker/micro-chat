@@ -2,7 +2,6 @@
   "scripts": {
     "dev:auth": "cd services/auth-service && npm run dev",
     "dev:chat": "cd services/chat-service && npm run dev",
-    "dev:search": "cd services/search-service && npm run dev",
     "dev:gateway": "cd services/api-gateway && npm run dev",
     "dev": "npm-run-all --parallel dev:*"
   },

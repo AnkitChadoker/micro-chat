@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import mongoose, { PipelineStage } from "mongoose";
-import RoomModel from "../models/room.model";
+import RoomModel, { ROOM_COLLECTION_NAME } from "../models/room.model";
 import RoomMemberModel, {
   ROOM_MEMBER_COLLECTION_NAME,
 } from "../models/room-member.model";
@@ -16,8 +16,158 @@ import MessageStatusModel from "../models/message-status.model";
 export const list = async (req: AuthRequest, res: Response) => {
   try {
     const { limit, page, search } = req.body;
+
+    const pipeline: PipelineStage[] = [
+      {
+        $match: { userId: new mongoose.Types.ObjectId(req.user!._id) },
+      },
+      {
+        $lookup: {
+          from: ROOM_COLLECTION_NAME,
+          localField: "roomId",
+          foreignField: "_id",
+          as: "room",
+        },
+      },
+      {
+        $unwind: "$room",
+      },
+      {
+        $lookup: {
+          from: ROOM_MEMBER_COLLECTION_NAME,
+          let: {
+            roomId: "$roomId",
+            myId: "$userId",
+            isPrivate: "$room.isPrivate",
+          },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ["$roomId", "$$roomId"] },
+                    { $ne: ["$userId", "$$myId"] },
+                    { $eq: ["$$isPrivate", true] },
+                  ],
+                },
+              },
+            },
+            { $project: { userId: 1, _id: 0 } },
+          ],
+          as: "otherMember",
+        },
+      },
+      {
+        $unwind: { path: "$otherMember", preserveNullAndEmptyArrays: true },
+      },
+      {
+        $lookup: {
+          from: MESSAGE_COLLECTION_NAME,
+          localField: "room.stats.lastMessageId",
+          foreignField: "_id",
+          as: "lastMessage",
+        },
+      },
+      {
+        $unwind: {
+          path: "$lastMessage",
+          preserveNullAndEmptyArrays: true, // in case no message exists
+        },
+      },
+      {
+        $project: {
+          roomId: "$room._id",
+          isPrivate: "$room.isPrivate",
+          isAdmin: 1,
+          joinedAt: 1,
+          lastMessage: {
+            _id: "$lastMessage._id",
+            content: "$lastMessage.content",
+            type: "$lastMessage.type",
+            senderId: "$lastMessage.senderId",
+            createdAt: "$lastMessage.createdAt",
+          },
+          // Group room fields
+          name: {
+            $cond: {
+              if: { $eq: ["$room.isPrivate", false] },
+              then: "$room.name",
+              else: null,
+            },
+          },
+          description: {
+            $cond: {
+              if: { $eq: ["$room.isPrivate", false] },
+              then: "$room.description",
+              else: null,
+            },
+          },
+          otherMemberId: {
+            $cond: {
+              if: { $eq: ["$room.isPrivate", true] },
+              then: "$otherMember.userId",
+              else: null,
+            },
+          },
+        },
+      },
+      {
+        $sort: {
+          "stats.lastActivityAt": -1,
+        },
+      },
+      {
+        $facet: {
+          metadata: [{ $count: "total" }],
+          data: [
+            ...(page && limit
+              ? [{ $skip: (page - 1) * limit }, { $limit: limit }]
+              : []),
+          ],
+        },
+      },
+    ];
+    const result = await RoomMemberModel.aggregate(pipeline);
+    const rooms = result[0]?.data || [];
+    const total = result[0]?.metadata[0]?.total || 0;
+
+    const userIdsToFetch = new Set<string>();
+
+    rooms.forEach((room: Record<string, any>) => {
+      if (room.isPrivate && room.otherMemberId) {
+        userIdsToFetch.add(room.otherMemberId.toString());
+      }
+      if (room.lastMessage?.senderId) {
+        userIdsToFetch.add(room.lastMessage.senderId.toString());
+      }
+    });
+
+    const users = await getUsers([...userIdsToFetch]);
+    const userMap = new Map(users.map((u) => [u._id.toString(), u]));
+    const enrichedRooms = rooms.map((room: Record<string, any>) => {
+      const senderUser = userMap.get(
+        room.lastMessage?.senderId?.toString() || ""
+      );
+      const otherUser = room.isPrivate
+        ? userMap.get(room.otherMemberId?.toString() || "")
+        : null;
+
+      const { senderId, ...restLastMessage } = room.lastMessage || {};
+      const { otherMemberId, ...restRoom } = room;
+      return {
+        ...restRoom,
+        lastMessage: { ...restLastMessage, sender: senderUser },
+        otherMember: otherUser,
+      };
+    });
+    return res.status(200).json(
+      fulfilled("Rooms fetched successfully.", {
+        rooms: enrichedRooms,
+        total,
+      })
+    );
   } catch (error) {
-    res.status(500).json(rejected("Could not fetch the list."));
+    res.status(500).json(rejected("Could not fetch the groups."));
   }
 };
 
@@ -481,7 +631,6 @@ export const members = async (req: AuthRequest, res: Response) => {
     );
   } catch (error) {
     console.log(error);
-
     return res.status(500).json(rejected("Members could not be fetched"));
   }
 };

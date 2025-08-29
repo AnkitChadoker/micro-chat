@@ -27,6 +27,7 @@ const messageStatusSchema = new mongoose.Schema<IMessageStatus>(
 
 messageStatusSchema.index({ userId: 1 });
 messageStatusSchema.index({ messageId: 1 });
+messageStatusSchema.index({ userId: 1, messageId: 1 }, { unique: true });
 
 export default mongoose.model<IMessageStatus>(
   MESSAGE_STATUS_MODEL_NAME,
