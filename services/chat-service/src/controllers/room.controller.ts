@@ -1,4 +1,4 @@
-import { Request, Response } from "express";
+import { Response } from "express";
 import mongoose, { PipelineStage } from "mongoose";
 import RoomModel, { ROOM_COLLECTION_NAME } from "../models/room.model";
 import RoomMemberModel, {
@@ -15,7 +15,7 @@ import MessageStatusModel from "../models/message-status.model";
 
 export const list = async (req: AuthRequest, res: Response) => {
   try {
-    const { limit, page, search } = req.body;
+    const { limit, page } = req.body;
 
     const pipeline: PipelineStage[] = [
       {
@@ -63,8 +63,47 @@ export const list = async (req: AuthRequest, res: Response) => {
       {
         $lookup: {
           from: MESSAGE_COLLECTION_NAME,
-          localField: "room.stats.lastMessageId",
-          foreignField: "_id",
+          let: { lastId: "$room.stats.lastMessageId" },
+          pipeline: [
+            { $match: { $expr: { $eq: ["$_id", "$$lastId"] } } },
+            {
+              $lookup: {
+                from: MESSAGE_COLLECTION_NAME,
+                let: { reactedMessageId: "$reactedMessageId" },
+                pipeline: [
+                  {
+                    $match: {
+                      $expr: {
+                        $and: [{ $eq: ["$_id", "$$reactedMessageId"] }],
+                      },
+                    },
+                  },
+                  {
+                    $project: {
+                      content: 1,
+                    },
+                  },
+                ],
+                as: "reactedMessage",
+              },
+            },
+            {
+              $unwind: {
+                path: "$reactedMessage",
+                preserveNullAndEmptyArrays: true,
+              },
+            },
+            {
+              $project: {
+                _id: 1,
+                content: 1,
+                type: 1,
+                senderId: 1,
+                createdAt: 1,
+                reactedMessage: 1,
+              },
+            },
+          ],
           as: "lastMessage",
         },
       },
@@ -80,13 +119,7 @@ export const list = async (req: AuthRequest, res: Response) => {
           isPrivate: "$room.isPrivate",
           isAdmin: 1,
           joinedAt: 1,
-          lastMessage: {
-            _id: "$lastMessage._id",
-            content: "$lastMessage.content",
-            type: "$lastMessage.type",
-            senderId: "$lastMessage.senderId",
-            createdAt: "$lastMessage.createdAt",
-          },
+          lastMessage: 1,
           // Group room fields
           name: {
             $cond: {

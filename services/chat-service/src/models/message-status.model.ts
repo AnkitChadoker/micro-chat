@@ -9,6 +9,11 @@ export interface IMessageStatus extends Document {
   sentAt: Date;
   deliveredAt?: Date;
   seenAt?: Date;
+  reaction?: {
+    emoji: string;
+    reactedAt: Date;
+    messageReactionId: mongoose.Types.ObjectId;
+  };
 }
 
 const messageStatusSchema = new mongoose.Schema<IMessageStatus>(
@@ -18,6 +23,16 @@ const messageStatusSchema = new mongoose.Schema<IMessageStatus>(
     sentAt: { type: Date, default: Date.now() },
     deliveredAt: { type: Date, default: null },
     seenAt: { type: Date, default: null },
+    reaction: {
+      type: {
+        emoji: String,
+        reactedAt: Date,
+        messageReactionId: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: MESSAGE_STATUS_COLLECTION_NAME,
+        },
+      },
+    },
   },
   {
     timestamps: true,

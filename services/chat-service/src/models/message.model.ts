@@ -6,6 +6,7 @@ export const MESSAGE_COLLECTION_NAME = "messages";
 export enum MessageType {
   SYSTEM = "system",
   MANUAL = "manual",
+  REACTION = "reaction",
 }
 
 export interface IMessage extends Document {
@@ -13,6 +14,8 @@ export interface IMessage extends Document {
   content: string;
   senderId: mongoose.Types.ObjectId;
   type: MessageType;
+  reactedMessageId?: mongoose.Types.ObjectId;
+  stats: { reactions: [{ emoji: string; count: number }] };
   createdAt?: Date;
 }
 
@@ -33,6 +36,11 @@ const messageSchema = new mongoose.Schema<IMessage>(
       enum: Object.values(MessageType),
       default: MessageType.MANUAL,
     },
+    reactedMessageId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: MESSAGE_COLLECTION_NAME,
+    },
+    stats: { type: { reactions: [{ emoji: String, count: Number }] } },
   },
   {
     timestamps: true,
