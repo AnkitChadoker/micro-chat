@@ -6,14 +6,20 @@ import MessageModel, {
   MessageType,
 } from "../models/message.model";
 import mongoose, { mongo, PipelineStage } from "mongoose";
-import RoomModel, { IRoom, ROOM_MODEL_NAME } from "../models/room.model";
+import RoomModel, {
+  IRoom,
+  ROOM_COLLECTION_NAME,
+  ROOM_MODEL_NAME,
+} from "../models/room.model";
 import MessageStatusModel, {
   MESSAGE_STATUS_COLLECTION_NAME,
 } from "../models/message-status.model";
 import { getUsers } from "../utils/user.util";
 import { processMessageJob } from "../queues/process-message.queue";
 import { handleLastMessageJob } from "../queues/handle-last-message.queue";
-import RoomMemberModel from "../models/room-member.model";
+import RoomMemberModel, {
+  ROOM_MEMBER_COLLECTION_NAME,
+} from "../models/room-member.model";
 import { clearRoomChatJob } from "../queues/clear-room-chat.queue";
 
 const buildMessagePipeline = ({
@@ -459,13 +465,297 @@ export const reactions = async (req: AuthRequest, res: Response) => {
   }
 };
 
-export const pin = async () => {};
+export const pin = async (req: AuthRequest, res: Response) => {
+  const session = await mongoose.startSession();
+  try {
+    session.startTransaction();
 
-export const pinnedMessages = async () => {};
+    const { messageId } = req.params;
 
-export const star = async () => {};
+    const message = await MessageModel.findOne({
+      _id: new mongoose.Types.ObjectId(messageId),
+    }).session(session);
+    if (!message) return res.status(404).json(rejected("Message not found."));
 
-export const starredMessages = async () => {};
+    if (message.isPinned) {
+      await MessageModel.updateOne(
+        { _id: new mongoose.Types.ObjectId(messageId) },
+        { $unset: { isPinned: 1 } },
+        { session }
+      );
+    } else {
+      await MessageModel.updateOne(
+        { _id: new mongoose.Types.ObjectId(messageId) },
+        { $set: { isPinned: true } },
+        { session }
+      );
+
+      const messageDoc = await new MessageModel({
+        content: `${req.user?.firstName} ${req.user?.lastName} has pinned a message.`,
+        senderId: req.user!._id,
+        roomId: message.roomId,
+        type: MessageType.SYSTEM,
+      }).save({ session });
+
+      await RoomModel.findOneAndUpdate(
+        { _id: message.roomId },
+        { "stats.lastActivityAt": new Date() }
+      ).session(session);
+
+      void handleLastMessageJob({
+        roomId: message.roomId,
+        insertedMessageId: messageDoc._id as mongoose.Types.ObjectId,
+      });
+
+      void processMessageJob({
+        messageId: messageDoc._id as mongoose.Types.ObjectId,
+        roomId: message.roomId,
+        senderId: new mongoose.Types.ObjectId(req.user!._id),
+      });
+    }
+    await session.commitTransaction();
+    return res.status(200).json(fulfilled("Operation successful."));
+  } catch (error) {
+    await session.abortTransaction();
+    console.log(error);
+    return res.status(500).json(rejected("Reaction could not be sent."));
+  } finally {
+    await session.endSession();
+  }
+};
+
+export const pinnedMessages = async (req: AuthRequest, res: Response) => {
+  try {
+    const { roomId } = req.params;
+    const pipeline: PipelineStage[] = [
+      {
+        $match: {
+          userId: new mongoose.Types.ObjectId(req.user?._id),
+          deleted: { $ne: true },
+        },
+      },
+      {
+        $lookup: {
+          from: MESSAGE_COLLECTION_NAME,
+          localField: "messageId",
+          foreignField: "_id",
+          as: "message",
+        },
+      },
+      { $unwind: "$message" },
+      {
+        $match: {
+          "message.roomId": new mongoose.Types.ObjectId(roomId),
+          "message.isPinned": true,
+        },
+      },
+      {
+        $sort: { "message.createdAt": -1 },
+      },
+      {
+        $project: {
+          _id: 1,
+          content: "$message.content",
+          senderId: "$message.senderId",
+          type: "$message.type",
+          createdAt: "$message.createdAt",
+          isPinned: "$message.isPinned",
+          status: {
+            sentAt: "$sentAt",
+            deliveredAt: "$deliveredAt",
+            seenAt: "$seenAt",
+            starred: "$starred",
+          },
+        },
+      },
+    ];
+    const messages = await MessageStatusModel.aggregate(pipeline);
+
+    const userIdsToFetch = new Set<string>();
+
+    messages.forEach((message: Record<string, any>) => {
+      if (message.senderId) {
+        userIdsToFetch.add(message.senderId.toString());
+      }
+    });
+    const users = await getUsers([...userIdsToFetch]);
+    const userMap = new Map(users.map((u) => [u._id.toString(), u]));
+
+    const enrichedMessages = messages.map((message: Record<string, any>) => {
+      const sender = userMap.get(message.senderId?.toString() || "");
+
+      const { senderId, ...restMessage } = message;
+      return {
+        ...restMessage,
+        sender,
+      };
+    });
+    return res.status(200).json(
+      fulfilled("Messages fetched successfully.", {
+        messages: enrichedMessages,
+      })
+    );
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json(rejected("Messages could not be fetched."));
+  }
+};
+
+export const star = async (req: AuthRequest, res: Response) => {
+  const session = await mongoose.startSession();
+  try {
+    session.startTransaction();
+
+    const { messageId } = req.params;
+
+    const message = await MessageModel.findOne({
+      _id: new mongoose.Types.ObjectId(messageId),
+    }).session(session);
+    if (!message) return res.status(404).json(rejected("Message not found."));
+
+    const messageStatus = await MessageStatusModel.findOne({
+      messageId: new mongoose.Types.ObjectId(messageId),
+      userId: new mongoose.Types.ObjectId(req.user!._id),
+      deleted: { $ne: true },
+    }).session(session);
+    if (!messageStatus)
+      return res.status(404).json(rejected("Message not found."));
+
+    await MessageStatusModel.updateOne(
+      { _id: messageStatus._id },
+      { starred: !messageStatus.starred },
+      { session }
+    );
+
+    await session.commitTransaction();
+    return res.status(200).json(fulfilled("Operation successful."));
+  } catch (error) {
+    await session.abortTransaction();
+    console.log(error);
+    return res.status(500).json(rejected("Reaction could not be sent."));
+  } finally {
+    await session.endSession();
+  }
+};
+
+export const starredMessages = async (req: AuthRequest, res: Response) => {
+  try {
+    const pipeline: PipelineStage[] = [
+      {
+        $match: {
+          userId: new mongoose.Types.ObjectId(req.user?._id),
+          starred: true,
+        },
+      },
+      {
+        $lookup: {
+          from: MESSAGE_COLLECTION_NAME,
+          localField: "messageId",
+          foreignField: "_id",
+          as: "message",
+        },
+      },
+      { $unwind: "$message" },
+      {
+        $sort: { "message.createdAt": -1 },
+      },
+      {
+        $lookup: {
+          from: ROOM_COLLECTION_NAME,
+          let: { roomId: "$message.roomId" },
+          pipeline: [
+            { $match: { $expr: { $eq: ["$_id", "$$roomId"] } } },
+            { $project: { name: 1, isPrivate: 1 } },
+          ],
+          as: "room",
+        },
+      },
+      {
+        $unwind: "$room",
+      },
+      {
+        $lookup: {
+          from: ROOM_MEMBER_COLLECTION_NAME,
+          let: {
+            roomId: "$room._id",
+            myId: "$userId",
+            isPrivate: "$room.isPrivate",
+          },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ["$roomId", "$$roomId"] },
+                    { $ne: ["$userId", "$$myId"] },
+                    { $eq: ["$$isPrivate", true] },
+                  ],
+                },
+              },
+            },
+            { $project: { userId: 1, _id: 0 } },
+          ],
+          as: "otherMember",
+        },
+      },
+      {
+        $unwind: { path: "$otherMember", preserveNullAndEmptyArrays: true },
+      },
+      {
+        $project: {
+          _id: 1,
+          content: "$message.content",
+          senderId: "$message.senderId",
+          type: "$message.type",
+          createdAt: "$message.createdAt",
+          isPinned: "$message.isPinned",
+          status: {
+            sentAt: "$sentAt",
+            deliveredAt: "$deliveredAt",
+            seenAt: "$seenAt",
+            starred: "$starred",
+          },
+          room: "$room",
+          otherMemberId: "$otherMember.userId",
+        },
+      },
+    ];
+    const messages = await MessageStatusModel.aggregate(pipeline);
+
+    const userIdsToFetch = new Set<string>();
+
+    messages.forEach((message: Record<string, any>) => {
+      if (message.senderId) {
+        userIdsToFetch.add(message.senderId.toString());
+      }
+      if (message.otherMemberId) {
+        userIdsToFetch.add(message.otherMemberId.toString());
+      }
+    });
+    const users = await getUsers([...userIdsToFetch]);
+    const userMap = new Map(users.map((u) => [u._id.toString(), u]));
+
+    const enrichedMessages = messages.map((message: Record<string, any>) => {
+      const sender = userMap.get(message.senderId?.toString() || "");
+      const otherMember = userMap.get(message.otherMemberId?.toString() || "");
+
+      const { senderId, otherMemberId, ...restMessage } = message;
+      return {
+        ...restMessage,
+        sender,
+        otherMember,
+      };
+    });
+    return res.status(200).json(
+      fulfilled("Messages fetched successfully.", {
+        messages: enrichedMessages,
+      })
+    );
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json(rejected("Messages could not be fetched."));
+  }
+};
 
 export const deleteForMe = async (req: AuthRequest, res: Response) => {
   const session = await mongoose.startSession();

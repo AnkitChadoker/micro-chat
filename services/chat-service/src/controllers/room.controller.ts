@@ -454,7 +454,6 @@ export const createGroup = async (req: AuthRequest, res: Response) => {
     room.stats!.lastActivityAt = new Date();
     room.stats!.totalMembers = roomMembers.length;
     room.stats!.lastActedUserId = ownerId;
-    room.stats!.lastMessageId = message._id as mongoose.Types.ObjectId;
     await room.save({ session });
 
     const populatedRoomPipeline: PipelineStage[] = [
@@ -578,7 +577,6 @@ export const updateGroup = async (req: AuthRequest, res: Response) => {
       room.stats!.lastActivityAt = new Date();
       room.stats!.totalMembers = roomMembers.length;
       room.stats!.lastActedUserId = ownerId;
-      room.stats!.lastMessageId = message._id as mongoose.Types.ObjectId;
       await room.save({ session });
     }
 
@@ -616,7 +614,6 @@ export const updateGroup = async (req: AuthRequest, res: Response) => {
       room.stats!.lastActivityAt = new Date();
       room.stats!.totalMembers = roomMembers.length;
       room.stats!.lastActedUserId = ownerId;
-      room.stats!.lastMessageId = message._id as mongoose.Types.ObjectId;
       await room.save({ session });
     }
     await session.commitTransaction();

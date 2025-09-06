@@ -17,6 +17,7 @@ export interface IMessage extends Document {
   reactedMessageId?: mongoose.Types.ObjectId;
   stats: { reactions: [{ emoji: string; count: number }] };
   isDeleted: boolean;
+  isPinned: boolean;
   createdAt?: Date;
 }
 
@@ -42,6 +43,7 @@ const messageSchema = new mongoose.Schema<IMessage>(
       ref: MESSAGE_COLLECTION_NAME,
     },
     isDeleted: { type: Boolean },
+    isPinned: { type: Boolean },
     stats: { type: { reactions: [{ emoji: String, count: Number }] } },
   },
   {
@@ -51,6 +53,7 @@ const messageSchema = new mongoose.Schema<IMessage>(
 );
 
 messageSchema.index({ roomId: 1 });
+messageSchema.index({ senderId: 1 });
 
 export default mongoose.model<IMessage>(
   MESSAGE_MODEL_NAME,

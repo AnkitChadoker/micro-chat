@@ -14,7 +14,6 @@ export interface IRoom extends Document {
   stats?: {
     totalMembers?: number;
     lastActivityAt?: Date;
-    lastMessageId?: mongoose.Types.ObjectId;
     lastActedUserId?: mongoose.Types.ObjectId;
   };
 }
@@ -30,10 +29,6 @@ const roomSchema = new mongoose.Schema<IRoom>(
     stats: {
       totalMembers: { type: Number, default: 0 },
       lastActivityAt: { type: Date },
-      lastMessageId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: MESSAGE_COLLECTION_NAME,
-      },
       lastActedUserId: {
         type: mongoose.Schema.Types.ObjectId,
       },
