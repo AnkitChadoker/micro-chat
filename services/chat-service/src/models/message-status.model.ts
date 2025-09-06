@@ -9,6 +9,7 @@ export interface IMessageStatus extends Document {
   sentAt: Date;
   deliveredAt?: Date;
   seenAt?: Date;
+  deleted?: boolean;
   reaction?: {
     emoji: string;
     reactedAt: Date;
@@ -23,6 +24,7 @@ const messageStatusSchema = new mongoose.Schema<IMessageStatus>(
     sentAt: { type: Date, default: Date.now() },
     deliveredAt: { type: Date, default: null },
     seenAt: { type: Date, default: null },
+    deleted: { type: Boolean },
     reaction: {
       type: {
         emoji: String,

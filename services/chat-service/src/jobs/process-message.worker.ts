@@ -1,6 +1,6 @@
 import { Worker } from "bullmq";
 import { QueueEnum } from "../queues";
-import { redisConnection as connection } from "../config";
+import { connectDB, redisConnection as connection } from "../config";
 import { IProcessMessage } from "../queues/process-message.queue";
 import RoomMemberModel from "../models/room-member.model";
 import MessageStatusModel, {

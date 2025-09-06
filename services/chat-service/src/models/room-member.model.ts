@@ -1,5 +1,6 @@
 import mongoose, { Document } from "mongoose";
 import { ROOM_COLLECTION_NAME } from "./room.model";
+import { MESSAGE_COLLECTION_NAME } from "./message.model";
 
 export const ROOM_MEMBER_MODEL_NAME = "RoomMember";
 export const ROOM_MEMBER_COLLECTION_NAME = "room_members";
@@ -8,6 +9,7 @@ export interface IRoomMember extends Document {
   userId: mongoose.Types.ObjectId;
   roomId: mongoose.Types.ObjectId;
   joinedAt: Date;
+  lastMessageId: mongoose.Types.ObjectId;
   isAdmin: boolean;
 }
 
@@ -20,6 +22,10 @@ const roomMemberSchema = new mongoose.Schema<IRoomMember>(
       ref: ROOM_COLLECTION_NAME,
     },
     joinedAt: { type: Date, default: Date.now },
+    lastMessageId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: MESSAGE_COLLECTION_NAME,
+    },
     isAdmin: { type: Boolean, default: false },
   },
   {
