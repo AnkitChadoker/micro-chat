@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import userModel from "../../models/user.model";
 import {
+  UserDetailByUserNameRequest,
   UserDetailRequest,
   UserDetailResponse,
   UsersDetailRequest,
@@ -29,6 +30,7 @@ export const authHandlers = {
         firstName: user.firstName,
         lastName: user.lastName,
         email: user.email,
+        username: user.username,
       },
       valid: true,
     };
@@ -54,8 +56,36 @@ export const authHandlers = {
         firstName: user.firstName,
         lastName: user.lastName,
         email: user.email,
+        username: user.username,
       },
     };
+    callback(null, response);
+  },
+
+  userDetailByUserName: async (
+    call: ServerUnaryCall<UserDetailByUserNameRequest, UserDetailResponse>,
+    callback: sendUnaryData<UserDetailResponse>
+  ) => {
+    const username = call.request.username;
+
+    const user = await userModel.findOne({
+      username,
+    });
+
+    if (!user) {
+      return callback(null);
+    }
+
+    const response = {
+      user: {
+        _id: user.id,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        email: user.email,
+        username: user.username,
+      },
+    };
+
     callback(null, response);
   },
 
@@ -77,6 +107,7 @@ export const authHandlers = {
         firstName: user.firstName,
         lastName: user.lastName,
         email: user.email,
+        username: user.username,
       })),
     };
 

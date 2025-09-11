@@ -5,6 +5,7 @@ package auth;
 service AuthService {
   rpc VerifyToken (VerifyTokenRequest) returns (VerifyTokenResponse);
   rpc UserDetail (UserDetailRequest) returns (UserDetailResponse);
+  rpc userDetailByUserName (UserDetailByUserNameRequest) returns (UserDetailResponse);
   rpc UsersDetail (UsersDetailRequest) returns (UsersDetailResponse);
 }
 
@@ -25,6 +26,10 @@ message UserDetailResponse {
   User user = 1;
 }
 
+message UserDetailByUserNameRequest {
+  string username = 1;
+}
+
 message UsersDetailRequest {
   repeated string _ids = 1;
 }
@@ -39,4 +44,5 @@ message User {
   string firstName = 2;
   string lastName = 3;
   string email = 4;
+  string username = 5;
 }

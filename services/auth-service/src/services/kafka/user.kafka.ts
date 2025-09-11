@@ -15,6 +15,7 @@ export const userCreated = async (user: Partial<IUser>) => {
             firstName: user.firstName,
             lastName: user.lastName,
             email: user.email,
+            username: user.username,
           },
         }),
       },
@@ -35,6 +36,7 @@ export const userUpdated = async (user: Partial<IUser>) => {
             firstName: user.firstName,
             lastName: user.lastName,
             email: user.email,
+            username: user.username,
           },
         }),
       },
@@ -51,6 +53,25 @@ export const userDeleted = async (id: mongoose.Types.ObjectId) => {
         value: JSON.stringify({
           event: "userDeleted",
           data: { _id: id.toString() },
+        }),
+      },
+    ],
+  });
+};
+
+export const userNameUpdated = async (
+  id: string,
+  oldUsername: string,
+  newUsername: string
+) => {
+  await producer.send({
+    topic: "users",
+    messages: [
+      {
+        key: "userNameUpdated",
+        value: JSON.stringify({
+          event: "userNameUpdated",
+          data: { _id: id, oldUsername, newUsername },
         }),
       },
     ],

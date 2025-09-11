@@ -27,6 +27,12 @@ export async function startKafkaConsumers() {
         } else if (event.event === "userDeleted") {
           deleteLRU(event.data._id);
           await deleteRedis(`user:${event.data._id}`);
+        } else if (event.event === "userNameUpdated") {
+          deleteLRU(event.data.oldUsername);
+          await deleteRedis(`user:${event.data.oldUsername}`);
+
+          setLRU(event.data.newUsername, event.data._id);
+          await setRedis(`user:${event.data.newUsername}`, event.data._id);
         }
       }
     },

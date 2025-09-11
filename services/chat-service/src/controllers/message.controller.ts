@@ -5,7 +5,7 @@ import MessageModel, {
   MESSAGE_COLLECTION_NAME,
   MessageType,
 } from "../models/message.model";
-import mongoose, { mongo, PipelineStage } from "mongoose";
+import mongoose, { PipelineStage } from "mongoose";
 import RoomModel, {
   IRoom,
   ROOM_COLLECTION_NAME,
@@ -14,7 +14,7 @@ import RoomModel, {
 import MessageStatusModel, {
   MESSAGE_STATUS_COLLECTION_NAME,
 } from "../models/message-status.model";
-import { getUsers } from "../utils/user.util";
+import { getUser, getUserByUserName, getUsers } from "../utils/user.util";
 import { processMessageJob } from "../queues/process-message.queue";
 import { handleLastMessageJob } from "../queues/handle-last-message.queue";
 import RoomMemberModel, {
@@ -103,17 +103,32 @@ export const list = async (req: AuthRequest, res: Response) => {
       if (message.senderId) {
         userIdsToFetch.add(message.senderId.toString());
       }
+      if (message.mentions) {
+        message.mentions.forEach((mention: Record<string, any>) => {
+          userIdsToFetch.add(mention.userId.toString());
+        });
+      }
     });
     const users = await getUsers([...userIdsToFetch]);
     const userMap = new Map(users.map((u) => [u._id.toString(), u]));
 
     const enrichedMessages = result.map((message: Record<string, any>) => {
       const sender = userMap.get(message.senderId?.toString() || "");
-
       const { senderId, ...restMessage } = message;
+
+      const enrichedMentions = (message.mentions || []).map(
+        (mention: Record<string, any>) => {
+          const mentionedUser = userMap.get(mention.userId?.toString() || "");
+          return {
+            ...mention,
+            username: mentionedUser ? mentionedUser.username : null,
+          };
+        }
+      );
       return {
         ...restMessage,
         sender,
+        mentions: enrichedMentions,
       };
     });
 
@@ -207,11 +222,15 @@ export const send = async (req: AuthRequest, res: Response) => {
   session.startTransaction();
   try {
     const { roomId } = req.params;
-    const { content } = req.body;
+    const { content, isForwarded, parentId } = req.body;
 
+    const mentions = await handleMentions(content);
     const newMessage = new MessageModel({
       roomId: new mongoose.Types.ObjectId(roomId),
       content,
+      mentions,
+      ...(isForwarded ? { isForwarded } : {}),
+      ...(parentId ? { parentId } : {}),
       senderId: new mongoose.Types.ObjectId(req.user!._id),
     });
     await newMessage.save({ session });
@@ -251,6 +270,27 @@ export const send = async (req: AuthRequest, res: Response) => {
   } finally {
     session.endSession();
   }
+};
+
+const handleMentions = async (message: string) => {
+  const mentionRegex = /@([a-zA-Z0-9._-]+)(?=\s|$|[!?,:;])/g;
+  let match;
+  const mentions = [];
+
+  while ((match = mentionRegex.exec(message)) !== null) {
+    const username = match[1];
+    const userId = await getUserByUserName(username);
+
+    if (userId) {
+      mentions.push({
+        userId,
+        start: match.index,
+        end: match.index + username.length + 1,
+      });
+    }
+  }
+
+  return mentions;
 };
 
 export const react = async (req: AuthRequest, res: Response) => {

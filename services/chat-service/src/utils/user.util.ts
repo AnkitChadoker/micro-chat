@@ -1,4 +1,3 @@
-// userCache.ts
 import { authService } from "../services/grpc/auth";
 import {
   getLRU,
@@ -18,7 +17,7 @@ export async function getUser(userId: string) {
   }
 
   // 2. Try Redis
-  const cached = await getRedis(`user:${userId}`);
+  const cached = await getRedis(key);
   if (cached) {
     user = JSON.parse(cached);
     setLRU(userId, user);
@@ -31,7 +30,9 @@ export async function getUser(userId: string) {
 
   // 4. Save to caches
   setLRU(userId, user);
+  setLRU(user.username, user._id);
   await setRedis(`user:${userId}`, user);
+  await setRedis(`user:${user.username}`, user._id);
 
   return user;
 }
@@ -81,8 +82,46 @@ export async function getUsers(userIds: string[]) {
   for (const user of fetchedUsers) {
     results[user._id] = user;
     setLRU(user._id, user);
+    setLRU(user.username, user._id);
     await setRedis(`user:${user._id}`, user);
+    await setRedis(`user:${user.username}`, user._id);
   }
 
   return userIds.map((id) => results[id] || null); // keep order
+}
+
+export async function getUserByUserName(username: string) {
+  // 1. Try LRU
+  let key = `user:${username}`;
+  let user = getLRU(username);
+
+  if (user) {
+    setLRU(username, user);
+    return user;
+  }
+
+  // 2. Try Redis
+  const cached = await getRedis(key);
+
+  if (cached) {
+    setLRU(username, cached);
+    await setRedis(key, cached);
+    return cached;
+  }
+
+  // 3. Fallback → gRPC call
+  user = await authService.userDetailByUserName(username);
+
+  // 4. Save to caches
+  if (user) {
+    setLRU(username, user._id);
+    await setRedis(`user:${username}`, user._id);
+
+    setLRU(user._id, user);
+    await setRedis(`user:${user._id}`, user);
+
+    return user._id;
+  } else {
+    return null;
+  }
 }

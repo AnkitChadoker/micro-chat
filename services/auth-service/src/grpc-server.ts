@@ -38,6 +38,7 @@ export function startGrpcServer() {
   server.addService(authPackage.AuthService.service, {
     verifyToken: authHandlers.verifyToken,
     userDetail: authHandlers.userDetail,
+    userDetailByUserName: authHandlers.userDetailByUserName,
     usersDetail: authHandlers.usersDetail,
   });
 

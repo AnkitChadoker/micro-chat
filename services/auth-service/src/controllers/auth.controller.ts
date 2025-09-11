@@ -22,18 +22,25 @@ export const login = async (req: Request, res: Response) => {
 
 export const register = async (req: Request, res: Response) => {
   try {
-    const { firstName, lastName, email, password } = req.body;
-    const exists = await UserModel.findOne({ email });
-    if (exists) {
+    const { firstName, lastName, username, email, password } = req.body;
+    const emailExists = await UserModel.findOne({ email });
+    if (emailExists) {
       return res
         .status(400)
         .json(rejected("The provided email is already in use."));
+    }
+    const userNameExists = await UserModel.findOne({ email });
+    if (userNameExists) {
+      return res
+        .status(400)
+        .json(rejected("The provided username is already in use."));
     }
     const hashedPassword = bcrypt.hashSync(password, 10);
     const user = new UserModel({
       firstName,
       lastName,
       email,
+      username,
       password: hashedPassword,
     });
     user.save();

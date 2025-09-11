@@ -9,6 +9,17 @@ export enum MessageType {
   REACTION = "reaction",
 }
 
+export interface IMention {
+  userId: mongoose.Types.ObjectId;
+  start: number;
+  end: number;
+}
+const MentionSchema = new mongoose.Schema<IMention>({
+  userId: mongoose.Schema.Types.ObjectId,
+  start: Number,
+  end: Number,
+});
+
 export interface IMessage extends Document {
   roomId: mongoose.Types.ObjectId;
   content: string;
@@ -18,6 +29,9 @@ export interface IMessage extends Document {
   stats: { reactions: [{ emoji: string; count: number }] };
   isDeleted: boolean;
   isPinned: boolean;
+  isForwarded: boolean;
+  parentId?: mongoose.Types.ObjectId;
+  mentions: IMention[];
   createdAt?: Date;
 }
 
@@ -44,6 +58,12 @@ const messageSchema = new mongoose.Schema<IMessage>(
     },
     isDeleted: { type: Boolean },
     isPinned: { type: Boolean },
+    isForwarded: { type: Boolean },
+    parentId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: MESSAGE_COLLECTION_NAME,
+    },
+    mentions: [MentionSchema],
     stats: { type: { reactions: [{ emoji: String, count: Number }] } },
   },
   {

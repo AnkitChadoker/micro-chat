@@ -23,6 +23,18 @@ function userDetailAsync(_id: string): Promise<any> {
   });
 }
 
+function userDetailByUserNameAsync(username: string): Promise<any> {
+  return new Promise((resolve) => {
+    authClient.userDetailByUserName({ username }, (err: any, response: any) => {
+      if (err || !response) {
+        resolve(null);
+      } else {
+        resolve(response.user);
+      }
+    });
+  });
+}
+
 function usersDetailAsync(_ids: string[]): Promise<any[]> {
   return new Promise((resolve) => {
     authClient.usersDetail({ _ids }, (err: any, response: any) => {
@@ -37,6 +49,7 @@ function usersDetailAsync(_ids: string[]): Promise<any[]> {
 
 export const authService = {
   userDetail: userDetailAsync,
+  userDetailByUserName: userDetailByUserNameAsync,
   verifyToken: verifyTokenAsync,
   usersDetail: usersDetailAsync,
 };

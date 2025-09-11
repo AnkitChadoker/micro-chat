@@ -18,6 +18,10 @@ export interface UserDetailRequest {
   _id: string;
 }
 
+export interface UserDetailByUserNameRequest {
+  username: string;
+}
+
 export interface UserDetailResponse {
   user: {
     _id: string;
